@@ -1,0 +1,8 @@
+{
+  "name": "nadius",
+  "version": "1.0.0",
+  "dependencies": {
+    "chap": "^0.4.0",
+    "radius": "^1.1.4"
+  }
+}
