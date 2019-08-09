@@ -8,8 +8,34 @@ const secret = 'secret';
 const authServer = dgram.createSocket('udp4');
 const acctServer = dgram.createSocket('udp4');
 
+function chapMatch(cPassword, chapPassword, challenge) {
+    let hash = chapPassword.slice(1);
+    let md5 = crypto.createHash('md5');
+    md5.write(chapPassword.slice(0, 1));
+    md5.write(Buffer.from(cPassword));
+    md5.write(challenge);
+    let calc = md5.digest('hex');
+
+    console.log('hash', hash);
+    console.log('calc', Buffer.from(calc, 'hex'));
+
+    return hash.equals(Buffer.from(calc, 'hex'));
+}
+
 authServer.on('message', (msg, req) => {
     let packet = radius.decode({packet: msg, secret});
+
+    console.log(packet);
+
+    let hash = packet.attributes['CHAP-Password'];
+    // let challenge = packet.attributes['Message-Authenticator'];
+    let challenge = packet.authenticator;
+
+    console.log(chapMatch('a111111', hash, challenge));
+    return;
+
+
+
     if (packet.code === 'Access-Request') {
 
         const cPassword = 'a111111';
