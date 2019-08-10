@@ -27,6 +27,19 @@ authServer.on('message', (msg, req) => {
 
         const username = packet.attributes['User-Name'];
         helper.httpGetJson('http://localhost:3000/?username='+username).then(userInfo => {
+            /*
+              uesrInfo
+              {
+                  "id": 1,
+                  "username": "test",
+                  "password": "testing123",
+                  "ip": "192.168.43.58",
+                  "upSpeedLimit": "128k",
+                  "downSpeedLimit": "128k",
+                  "timeout": 0
+                }
+            */
+        
             let msResponse;
 
             if (userInfo && userInfo.password) {
