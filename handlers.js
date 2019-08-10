@@ -72,7 +72,13 @@ class ChapAuthHandler extends AuthHandler {
 
     check() {
         let hash = this.packet.attributes['CHAP-Password'];
-        let challenge = this.packet.authenticator;
+        let challenge;
+        if (typeof this.packet.attributes['CHAP-Challenge'] !== 'undefined') {
+            challenge = this.packet.attributes['CHAP-Challenge'];
+        } else {
+            challenge = this.packet.authenticator;
+        }
+
 
         if (ChapAuthHandler.chapMatch(this.cPassword, hash, challenge)) {
             return this.success();
