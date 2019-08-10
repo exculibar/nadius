@@ -4,6 +4,8 @@ A simple nodejs radius server
 
 Supported Auth type: PAP / CHAP / MSCHAPv1 / MSCHAPv2
 
+Just testing on mikrotik RouterOS 
+
 Used resources
 ==============
 * https://github.com/CodeAnimal/node-chap
