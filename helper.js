@@ -9,7 +9,7 @@ module.exports = {
             if (auth) {
                 result = await getPromise(url);
             } else {
-                result = await getPromise(url);
+                result = await getPromise(url, auth);
             }
             return JSON.parse(result.body);
         } catch (e) {
