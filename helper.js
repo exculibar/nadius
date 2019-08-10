@@ -7,9 +7,9 @@ module.exports = {
         try {
             let result;
             if (auth) {
-                result = await getPromise(url);
-            } else {
                 result = await getPromise(url, auth);
+            } else {
+                result = await getPromise(url);
             }
             return JSON.parse(result.body);
         } catch (e) {
