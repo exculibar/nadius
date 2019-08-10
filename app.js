@@ -74,7 +74,7 @@ authServer.bind(1812);
 
 acctServer.on("message", function (msg, rinfo) {
 
-    console.log('acct: ', msg);authcating
+    console.log('acct: ', msg);
     let code, username, password, packet;
     packet = radius.decode({packet: msg, secret: secret});
 
