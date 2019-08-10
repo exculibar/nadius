@@ -109,8 +109,12 @@ class MSChapAuthHandler extends AuthHandler {
         let rawAttrs = this.packet.raw_attributes;
         let msAttrs = {};
         for (let i in rawAttrs) {
-            if (rawAttrs[i][1].readUIntBE(0, 4) === MicrosoftVendorID) {
-                msAttrs[rawAttrs[i][1].readUIntBE(4, 1)] = rawAttrs[i][1];
+            try {
+                if (rawAttrs[i][1].readUIntBE(0, 4) === MicrosoftVendorID) {
+                    msAttrs[rawAttrs[i][1].readUIntBE(4, 1)] = rawAttrs[i][1];
+                }
+            } catch (e) {
+                //
             }
         }
         this.msAttrs = msAttrs;
