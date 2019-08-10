@@ -7,8 +7,8 @@ server.on('request', (req, res) => {
     res.statusCode = 200;
     res.end(JSON.stringify({
         id: 1,
-        username: 'gaolool',
-        password: 'a111111',
+        username: 'test',
+        password: 'testing123',
         ip: '192.168.43.58',
         upSpeedLimit: '128k',
         downSpeedLimit: '128k',
