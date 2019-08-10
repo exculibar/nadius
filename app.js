@@ -57,6 +57,8 @@ authServer.on('message', (msg, req) => {
                     console.log('Error sending response to ', req);
                 }
             });
+        }).catch(reason => {
+            console.log(reason);
         });
     } else {
         console.log('Unknown packet type: ', packet.code);
