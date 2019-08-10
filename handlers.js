@@ -1,5 +1,6 @@
 const radius = require('radius');
 const chap = require('chap');
+const crypto = require('crypto');
 
 const MicrosoftVendorID = 311;
 const ChallengeKey = 11;
@@ -23,40 +24,41 @@ class AuthHandler {
         return false;
     }
 
-    failed() {
-        const code = 'Access-Reject';
-        return radius.encode_response({
+    success(vendorAttrs) {
+        let attributes = [
+            ['Reply-Message', 'Hi, ' + this.username],
+        ];
+        if (vendorAttrs) {
+            attributes.push(vendorAttrs);
+        }
+        return {
             packet: this.packet,
-            code: code,
+            code: 'Access-Accept',
+            secret: this.secret,
+            attributes,
+        };
+    }
+
+    failed() {
+        return {
+            packet: this.packet,
+            code: 'Access-Reject',
             secret: this.secret,
             attributes: [
                 ['Reply-Message', 'Invalid password'],
             ]
-        });
+        };
     }
 }
 
 class PapAuthHandler extends AuthHandler {
     authable() {
-        return typeof this.packet.attributes['User-password'] !== 'undefined';
+        return typeof this.packet.attributes['User-Password'] !== 'undefined';
     }
 
     check() {
-        if (this.packet.attributes['User-password'] === this.cPassword) {
-            const code = 'Access-Accept';
-            return radius.encode_response({
-                packet: this.packet,
-                code: code,
-                secret: this.secret,
-                attributes: [
-                    ['Framed-IP-Address', '192.168.43.5'],
-                    ['Reply-Message', 'Hi, ' + this.username],
-                    ['Session-Timeout', 0], //0 is unlimited
-                    // ['Accend-Data-Rate', Buffer.from('128k')], //upload
-                    // ['Accend-Xmit-Rate', Buffer.from('128k')], //download
-                    // ['Rate-Limit', Buffer.from('128k')]
-                ]
-            });
+        if (this.packet.attributes['User-Password'] === this.cPassword) {
+            return this.success();
         } else {
             return this.failed();
         }
@@ -73,20 +75,7 @@ class ChapAuthHandler extends AuthHandler {
         let challenge = this.packet.authenticator;
 
         if (ChapAuthHandler.chapMatch(this.cPassword, hash, challenge)) {
-            const code = 'Access-Accept';
-            return radius.encode_response({
-                packet: this.packet,
-                code: code,
-                secret: this.secret,
-                attributes: [
-                    ['Framed-IP-Address', '192.168.43.5'],
-                    ['Reply-Message', 'Hi, ' + this.username],
-                    ['Session-Timeout', 0], //0 is unlimited
-                    // ['Accend-Data-Rate', Buffer.from('128k')], //upload
-                    // ['Accend-Xmit-Rate', Buffer.from('128k')], //download
-                    // ['Rate-Limit', Buffer.from('128k')]
-                ]
-            });
+            return this.success();
         } else {
             return this.failed();
         }
@@ -154,32 +143,19 @@ class MSChapV1AuthHandler extends MSChapAuthHandler {
 
     check() {
         const res = MSChapV1AuthHandler.decodeResponse(this.msAttrs[NtResponseKey]);
-        if (res.flags === 0) {
-            if (! res.lmResponse.equals(Buffer.from(new Array(24).fill(0)))) {
+        if (res.flags !== 0) {
+            if (res.lmResponse.equals(Buffer.from(new Array(24).fill(0)))) {
                 const calc = MSChapV1AuthHandler.encryptv1(this.challenge, this.cPassword);
                 const mppe = MSChapV1AuthHandler.mppev1(this.cPassword);
 
-                if (calc.equals(mppe)) {
-                    const code = 'Access-Accept';
-
-                    return radius.encode_response({
-                        packet: this.packet,
-                        code: code,
-                        secret: this.secret,
-                        attributes: [
-                            ['Vendor-Specific', MicrosoftVendorID, [
-                                [7, Buffer.from([0x0, 0x0, 0x0, 0x01])],
-                                [8, Buffer.from([0x0, 0x0, 0x0, 0x06])],
-                                [12, mppe],
-                            ]],
-                            ['Framed-IP-Address', '192.168.43.5'],
-                            ['Reply-Message', 'Hi, ' + this.username],
-                            ['Session-Timeout', 0], //0 is unlimited
-                            // ['Accend-Data-Rate', Buffer.from('128k')], //upload
-                            // ['Accend-Xmit-Rate', Buffer.from('128k')], //download
-                            // ['Rate-Limit', Buffer.from('128k')]
-                        ]
-                    });
+                if (calc.equals(res.response)) {
+                    return this.success(
+                        ['Vendor-Specific', MicrosoftVendorID, [
+                            [7, Buffer.from([0x0, 0x0, 0x0, 0x01])],
+                            [8, Buffer.from([0x0, 0x0, 0x0, 0x06])],
+                            [12, mppe],
+                        ]]
+                    );
                 } else {
                     return this.failed();
                 }
@@ -204,20 +180,20 @@ class MSChapV1AuthHandler extends MSChapAuthHandler {
     }
 
     static encryptv1(challenge, password) {
-        const passwordHash = chap.MSCHAPv1.NtPasswordHash(password);
-        return chap.MSCHAPv1.NtChallengeResponse(challenge, passwordHash);
+        return chap.MSCHAPv1.NtChallengeResponse(challenge, password);
     }
 
     static mppev1(password) {
+
         let res = Buffer.alloc(0);
         let passwordHash = chap.MSCHAPv1.NtPasswordHash(password);
 
         let lm = chap.MSCHAPv1.LmPasswordHash(password);
-        lm = lm.slice(-8);
+        lm = lm.slice(0, 8);
 
         res = Buffer.concat([res, lm]);
         let hashHash = MSChapAuthHandler.hashNtPasswordHash(passwordHash);
-        res = Buffer.concat([res, Buffer.from(hashHash, 'hex').slice(-16)]);
+        res = Buffer.concat([res, Buffer.from(hashHash, 'hex').slice(0, 16)]);
         res = Buffer.concat([res, Buffer.from(new Array(8).fill(0))]);
 
         return res;
@@ -245,26 +221,16 @@ class MSChapV2AuthHandler extends MSChapAuthHandler {
                 const [sendEnc, recvEnc] = MSChapV2AuthHandler.mmpev2(this.secret, this.cPassword, this.packet.authenticator, res.response);
 
                 if (sendEnc && recvEnc) {
-                    return radius.encode_response({
-                        packet: this.packet,
-                        code: code,
-                        secret: this.secret,
-                        attributes: [
-                            ['Vendor-Specific', MicrosoftVendorID, [
-                                [7, Buffer.from([0x0, 0x0, 0x0, 0x01])],
-                                [8, Buffer.from([0x0, 0x0, 0x0, 0x06])],
-                                [26, Buffer.concat([Buffer.from([res.ident]), Buffer.from(authenticatorResponse)])],
-                                [16, sendEnc],
-                                [17, recvEnc],
-                            ]],
-                            ['Framed-IP-Address', '192.168.43.5'],
-                            ['Reply-Message', 'Hi, ' + this.username],
-                            ['Session-Timeout', 0], //0 is unlimited
-                            // ['Accend-Data-Rate', Buffer.from('128k')], //upload
-                            // ['Accend-Xmit-Rate', Buffer.from('128k')], //download
-                            // ['Rate-Limit', Buffer.from('128k')]
-                        ]
-                    });
+
+                    return this.success(
+                        ['Vendor-Specific', MicrosoftVendorID, [
+                            [7, Buffer.from([0x0, 0x0, 0x0, 0x01])],
+                            [8, Buffer.from([0x0, 0x0, 0x0, 0x06])],
+                            [26, Buffer.concat([Buffer.from([res.ident]), Buffer.from(authenticatorResponse)])],
+                            [16, sendEnc],
+                            [17, recvEnc],
+                        ]]
+                    );
                 } else {
                     return this.failed();
                 }
@@ -369,3 +335,10 @@ class MSChapV2AuthHandler extends MSChapAuthHandler {
         return [sendEnc, recvEnc];
     }
 }
+
+module.exports = {
+    PapAuthHandler,
+    ChapAuthHandler,
+    MSChapV1AuthHandler,
+    MSChapV2AuthHandler,
+};
